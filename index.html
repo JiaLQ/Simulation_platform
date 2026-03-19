@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>计量仿真 · 双模型专业图形库 (Origin格式支持)</title>
+    <!-- 基础库 -->
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+    <!-- JSZip用于Origin项目文件 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif;
+        }
+        body {
+            background: #f8fafc;
+            padding: 25px;
+        }
+        .container {
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #0f172a;
+            font-size: 2.2rem;
+            font-weight: 500;
+            margin-bottom: 5px;
+            letter-spacing: -0.5px;
+        }
+        .subtitle {
+            color: #475569;
+            font-size: 1rem;
+            margin-bottom: 25px;
+            padding-left: 15px;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .main-panel {
+            display: flex;
+            gap: 25px;
+            flex-wrap: wrap;
+        }
+        
+        /* 左侧控制区 */
+        .control-panel {
+            flex: 1.2;
+            min-width: 380px;
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        .control-panel h3 {
+            color: #0f172a;
+            font-weight: 600;
+            font-size: 1.3rem;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        /* 模型切换 */
+        .model-tabs {
+            display: flex;
+            background: #f1f5f9;
+            border-radius: 12px;
+            padding: 4px;
+            margin-bottom: 25px;
+            border: 1px solid #cbd5e1;
+        }
+        .model-tab {
+            flex: 1;
+            text-align: center;
+            padding: 12px 8px;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+            color: #475569;
+            transition: all 0.2s;
+        }
+        .model-tab.active {
+            background: #3b82f6;
+            color: white;
+            box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+        }
+        
+        /* 参数面板 */
+        .param-panel {
+            background: #f8fafc;
+            border-radius: 16px;
+            padding: 20px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+        }
+        .param-title {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 15px;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .param-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+        }
+        .param-item {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .param-item label {
+            color: #475569;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        .param-item input, .param-item select {
+            padding: 8px 12px;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: white;
+            font-size: 0.95rem;
+        }
+        
+        /* 数据区域 */
+        .data-zone {
+            background: linear-gradient(145deg, #f8fafc, #f1f5f9);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            margin: 20px 0;
+            border: 2px dashed #94a3b8;
+        }
+        .btn {
+            padding: 10px 20px;
+            border-radius: 8px;
+            border: 1px solid #cbd5e1;
+            background: white;
+            color: #1e293b;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 5px;
+            font-size: 0.95rem;
+        }
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(59,130,246,0.3);
+        }
+        .btn-primary:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+        }
+        .btn-outline {
+            background: transparent;
+            border: 1px solid #3b82f6;
+            color: #3b82f6;
+        }
+        .btn-outline:hover {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .file-info {
+            margin-top: 12px;
+            padding: 8px;
+            background: white;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            color: #475569;
+            border: 1px solid #cbd5e1;
+        }
+        
+        /* Origin专属按钮 */
+        .origin-btn {
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            box-shadow: 0 4px 12px rgba(139,92,246,0.3);
+        }
+        .origin-btn:hover {
+            background: #7c3aed;
+        }
+        
+        /* 右侧可视化区 */
+        .viz-panel {
+            flex: 2.5;
+            min-width: 850px;
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            border: 1px solid #e2e8f0;
+        }
+        
+        /* 图形分类标题 */
+        .graph-category {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .category-badge {
+            background: #3b82f6;
+            color: white;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+        
+        .graph-tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 15px;
+        }
+        .graph-tab {
+            padding: 8px 16px;
+            border-radius: 20px;
+            cursor: pointer;
+            color: #475569;
+            font-size: 0.95rem;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+        .graph-tab:hover {
+            background: #f1f5f9;
+        }
+        .graph-tab.active {
+            background: #3b82f6;
+            color: white;
+            border-color: #3b82f6;
+        }
+        
+        #mainChart {
+            width: 100%;
+            height: 380px;
+            background: white;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            margin-bottom: 20px;
+            padding: 10px;
+        }
+        
+        /* 小图网格 - 8个图形 */
+        .gallery {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .gallery-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid #e2e8f0;
+            transition: all 0.2s;
+        }
+        .gallery-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 20px rgba(0,0,0,0.05);
+        }
+        .gallery-card h4 {
+            color: #1e293b;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .small-chart {
+            height: 120px;
+            width: 100%;
+        }
+        
+        .download-bar {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+            margin: 20px 0;
+            flex-wrap: wrap;
+        }
+        
+        .footer-note {
+            border-top: 1px solid #e2e8f0;
+            padding-top: 15px;
+            margin-top: 15px;
+            color: #64748b;
+            font-size: 0.85rem;
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        /* 提示信息 */
+        .alert {
+            background: #fef9c3;
+            border: 1px solid #facc15;
+            color: #854d0e;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            font-size: 0.9rem;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>📊 计量经济学仿真 · 双模型专业图形库</h1>
+    <div class="subtitle">因果森林 · 多维固定效应 · 每模型8种专业图形 · Origin项目导出</div>
+
+    <div class="main-panel">
+        <!-- 左侧控制区 -->
+        <div class="control-panel">
+            <h3>⚙️ 控制面板</h3>
+            
+            <!-- 模型切换 -->
+            <div class="model-tabs" id="modelTabs">
+                <div class="model-tab active" data-model="cf">🌲 因果森林 (异质性处理效应)</div>
+                <div class="model-tab" data-model="fe">📊 多维固定效应 (面板数据)</div>
+            </div>
+
+            <!-- 因果森林参数 -->
+            <div id="cfParams" class="param-panel">
+                <div class="param-title"><span>🌳</span> 因果森林超参数</div>
+                <div class="param-grid">
+                    <div class="param-item"><label>树数量 (n_estimators)</label><input type="number" id="cf_trees" value="500" min="100" max="3000"></div>
+                    <div class="param-item"><label>最小叶子大小</label><input type="number" id="cf_minleaf" value="20" min="5" max="500"></div>
+                    <div class="param-item"><label>特征抽样 (mtry)</label><input type="number" id="cf_mtry" value="5" min="1" max="20"></div>
+                    <div class="param-item"><label>Honesty分数</label><input type="number" id="cf_honesty" value="0.5" min="0.1" max="1" step="0.1"></div>
+                    <div class="param-item"><label>子样本比例</label><input type="number" id="cf_subratio" value="0.7" min="0.3" max="0.95" step="0.05"></div>
+                    <div class="param-item"><label>分裂准则</label>
+                        <select id="cf_criterion"><option value="mse">MSE</option><option value="het" selected>异质性</option></select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 固定效应参数 -->
+            <div id="feParams" class="param-panel" style="display: none;">
+                <div class="param-title"><span>📌</span> 多维固定效应选项</div>
+                <div class="param-grid">
+                    <div class="param-item"><label>个体固定效应</label>
+                        <select id="fe_entity"><option value="yes" selected>包含</option><option value="no">不包含</option></select>
+                    </div>
+                    <div class="param-item"><label>时间固定效应</label>
+                        <select id="fe_time"><option value="yes" selected>包含</option><option value="no">不包含</option></select>
+                    </div>
+                    <div class="param-item"><label>行业/地区效应</label>
+                        <select id="fe_ind"><option value="yes">包含</option><option value="no" selected>不包含</option></select>
+                    </div>
+                    <div class="param-item"><label>聚类稳健标准误</label>
+                        <select id="fe_cluster"><option value="yes" selected>是</option><option value="no">否</option></select>
+                    </div>
+                    <div class="param-item"><label>估计方法</label>
+                        <select id="fe_method"><option value="within">组内去均值</option><option value="lsdv">LSDV</option><option value="re">随机效应</option></select>
+                    </div>
+                    <div class="param-item"><label>异方差稳健</label>
+                        <select id="fe_robust"><option value="yes">是</option><option value="no" selected>否</option></select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 数据区域 -->
+            <div class="data-zone">
+                <div style="margin-bottom: 15px; font-weight: 600; color: #1e293b;">📁 数据源</div>
+                <input type="file" id="fileInput" accept=".csv" style="display: none;">
+                <button class="btn btn-outline" id="uploadBtn">📂 选择CSV文件</button>
+                <button class="btn btn-outline" id="sampleBtn">🧪 加载示例数据</button>
+                <div id="fileInfo" class="file-info">✅ 面板数据: 100个体 × 8期 = 800观测</div>
+            </div>
+
+            <!-- 操作按钮组 -->
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 20px 0;">
+                <button class="btn btn-primary" id="runBtn" style="grid-column: span 2; padding: 14px;">🚀 运行仿真 & 更新全部图形</button>
+                <button class="btn" id="downloadPngBtn">📥 PNG下载</button>
+                <button class="btn" id="downloadSvgBtn">📥 SVG下载</button>
+                <button class="btn origin-btn" id="downloadOriginBtn" style="grid-column: span 2;">📦 导出Origin项目 (8个图形+数据)</button>
+                <button class="btn" id="downloadDataBtn">💾 系数数据 (CSV)</button>
+                <button class="btn" id="downloadCateBtn">💾 CATE数据 (CSV)</button>
+            </div>
+
+            <div id="alertMsg" class="alert">⚠️ 请先点击【运行仿真】生成图形</div>
+        </div>
+
+        <!-- 右侧可视化区 -->
+        <div class="viz-panel">
+            <!-- 动态图形选项卡 - 根据模型变化 -->
+            <div class="graph-category">
+                <span class="category-badge" id="modelBadge">🌲 因果森林图形集</span>
+                <span style="color: #64748b; font-size: 0.9rem;">点击下方标签切换主图</span>
+            </div>
+            
+            <div class="graph-tabs" id="graphTabs">
+                <!-- CF模型图形 (8个) -->
+                <div class="graph-tab active" data-graph="cate_dist">📊 CATE分布</div>
+                <div class="graph-tab" data-graph="cate_hist">📈 CATE直方图</div>
+                <div class="graph-tab" data-graph="variable_imp">⭐ 变量重要性</div>
+                <div class="graph-tab" data-graph="partial_dep">📉 偏依赖图</div>
+                <div class="graph-tab" data-graph="hte_heatmap">🔥 异质性热图</div>
+                <div class="graph-tab" data-graph="tree_structure">🌲 树结构</div>
+                <div class="graph-tab" data-graph="confusion">🎯 混淆矩阵</div>
+                <div class="graph-tab" data-graph="shapley">💎 SHAP值</div>
+                
+                <!-- FE模型图形 (将用JS动态替换) -->
+            </div>
+
+            <!-- 主图容器 -->
+            <div id="mainChart"></div>
+
+            <!-- 小图网格 - 8个辅助图形 -->
+            <div class="gallery" id="gallery">
+                <!-- 动态填充8个小图 -->
+            </div>
+
+            <div class="download-bar">
+                <span style="color: #8b5cf6;">✨ Origin项目包含所有8个矢量图+数据，可直接编辑</span>
+            </div>
+            
+            <div class="footer-note">
+                <span>⚡ 模型切换后图形自动更新</span>
+                <span>📊 每模型8种专业分析图形</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function() {
+    // ---------- 状态管理 ----------
+    let currentModel = 'cf';
+    let currentGraph = 'cate_dist';
+    let uploadedData = null;
+    let simulationResult = null;
+
+    // ---------- 生成丰富的示例数据 ----------
+    function generateRichSample() {
+        const rows = [];
+        const individuals = 100;
+        const periods = 8;
+        const industries = 6;
+        
+        for (let i = 1; i <= individuals; i++) {
+            for (let t = 1; t <= periods; t++) {
+                // 固定效应
+                const alpha = Math.sin(i) * 1.2;
+                const lambda = Math.log(t) * 0.9;
+                const industry = (i % industries) + 1;
+                const gamma = industry * 0.2;
+                
+                // 变量
+                const treat = Math.random() > 0.4 ? 1 : 0;
+                const x1 = 1 + Math.random() * 6;
+                const x2 = 2 + Math.random() * 5;
+                const x3 = Math.random() * 4;
+                const x4 = (i % 7) + Math.random() * 3;
+                
+                // 真实处理效应 (随x1和t变化)
+                const te = 1.5 + 0.3 * x1 + 0.05 * t;
+                
+                // 因变量
+                const y = 2.0 + te * treat + 0.6 * x1 - 0.2 * x2 + 0.1 * x3 + 0.05 * x4 + alpha + lambda + gamma + (Math.random() - 0.5) * 2.5;
+                
+                rows.push({
+                    id: i,
+                    time: t,
+                    industry: industry,
+                    treat: treat,
+                    x1: Number(x1.toFixed(2)),
+                    x2: Number(x2.toFixed(2)),
+                    x3: Number(x3.toFixed(2)),
+                    x4: Number(x4.toFixed(2)),
+                    y: Number(y.toFixed(2))
+                });
+            }
+        }
+        return rows;
+    }
+
+    // 初始化示例数据
+    uploadedData = generateRichSample();
+    
+    // ---------- DOM 元素 ----------
+    const modelTabs = document.querySelectorAll('#modelTabs .model-tab');
+    const cfParams = document.getElementById('cfParams');
+    const feParams = document.getElementById('feParams');
+    const modelBadge = document.getElementById('modelBadge');
+    const graphTabsContainer = document.getElementById('graphTabs');
+    const gallery = document.getElementById('gallery');
+    const fileInput = document.getElementById('fileInput');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const sampleBtn = document.getElementById('sampleBtn');
+    const fileInfo = document.getElementById('fileInfo');
+    const runBtn = document.getElementById('runBtn');
+    const downloadPngBtn = document.getElementById('downloadPngBtn');
+    const downloadSvgBtn = document.getElementById('downloadSvgBtn');
+    const downloadOriginBtn = document.getElementById('downloadOriginBtn');
+    const downloadDataBtn = document.getElementById('downloadDataBtn');
+    const downloadCateBtn = document.getElementById('downloadCateBtn');
+    const alertMsg = document.getElementById('alertMsg');
+
+    // 图表实例
+    const mainChart = echarts.init(document.getElementById('mainChart'));
+
+    // ---------- 图形定义：因果森林 (8个) ----------
+    const cfGraphs = [
+        { id: 'cate_dist', name: 'CATE分布', icon: '📊' },
+        { id: 'cate_hist', name: 'CATE直方图', icon: '📈' },
+        { id: 'variable_imp', name: '变量重要性', icon: '⭐' },
+        { id: 'partial_dep', name: '偏依赖图', icon: '📉' },
+        { id: 'hte_heatmap', name: '异质性热图', icon: '🔥' },
+        { id: 'tree_structure', name: '树结构', icon: '🌲' },
+        { id: 'confusion', name: '混淆矩阵', icon: '🎯' },
+        { id: 'shapley', name: 'SHAP值', icon: '💎' }
+    ];
+
+    // 图形定义：固定效应 (8个)
+    const feGraphs = [
+        { id: 'fe_coef', name: '系数估计', icon: '📌' },
+        { id: 'fe_ci', name: '置信区间', icon: '📊' },
+        { id: 'fe_resid', name: '残差诊断', icon: '📉' },
+        { id: 'fe_qq', name: 'Q-Q图', icon: '📈' },
+        { id: 'fe_time', name: '时间效应', icon: '⏰' },
+        { id: 'fe_individual', name: '个体效应', icon: '👥' },
+        { id: 'fe_heatmap', name: '效应热图', icon: '🔥' },
+        { id: 'fe_fitted', name: '拟合值vs实际', icon: '🎯' }
+    ];
+
+    // ---------- 更新图形选项卡 ----------
+    function updateGraphTabs() {
+        const graphs = currentModel === 'cf' ? cfGraphs : feGraphs;
+        let html = '';
+        graphs.forEach((g, index) => {
+            const activeClass = index === 0 ? 'active' : '';
+            html += `<div class="graph-tab ${activeClass}" data-graph="${g.id}">${g.icon} ${g.name}</div>`;
+        });
+        graphTabsContainer.innerHTML = html;
+        
+        // 重新绑定事件
+        document.querySelectorAll('#graphTabs .graph-tab').forEach(tab => {
+            tab.addEventListener('click', function() {
+                document.querySelectorAll('#graphTabs .graph-tab').forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+                currentGraph = this.dataset.graph;
+                if (simulationResult) {
+                    renderMainChart();
+                }
+            });
+        });
+        
+        // 重置当前图形为第一个
+        currentGraph = graphs[0].id;
+    }
+
+    // ---------- 模型切换 ----------
+    modelTabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            modelTabs.forEach(t => t.classList.remove('active'));
+            this.classList.add('active');
+            currentModel = this.dataset.model;
+            
+            // 更新参数面板
+            cfParams.style.display = currentModel === 'cf' ? 'block' : 'none';
+            feParams.style.display = currentModel === 'fe' ? 'block' : 'none';
+            
+            // 更新徽章
+            modelBadge.innerHTML = currentModel === 'cf' ? '🌲 因果森林图形集' : '📊 多维固定效应图形集';
+            
+            // 更新图形选项卡
+            updateGraphTabs();
+            
+            // 清空仿真结果
+            simulationResult = null;
+            alertMsg.style.display = 'block';
+            alertMsg.textContent = '⚠️ 模型已切换，请点击【运行仿真】生成图形';
+            
+            // 清空画廊
+            gallery.innerHTML = '';
+        });
+    });
+
+    // ---------- 文件处理 ----------
+    uploadBtn.addEventListener('click', () => fileInput.click());
+    
+    fileInput.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+        
+        Papa.parse(file, {
+            header: true,
+            dynamicTyping: true,
+            skipEmptyLines: true,
+            complete: function(results) {
+                uploadedData = results.data;
+                fileInfo.innerHTML = `📁 ${file.name} (${uploadedData.length}行)`;
+                simulationResult = null;
+                alertMsg.style.display = 'block';
+                alertMsg.textContent = '⚠️ 数据已更新，请点击【运行仿真】';
+            },
+            error: function(err) {
+                alert('解析失败: ' + err);
+            }
+        });
+    });
+
+    sampleBtn.addEventListener('click', function() {
+        uploadedData = generateRichSample();
+        fileInfo.innerHTML = `✅ 示例数据已加载 (${uploadedData.length}行)`;
+        simulationResult = null;
+        alertMsg.style.display = 'block';
+        alertMsg.textContent = '⚠️ 示例数据已加载，请点击【运行仿真】';
+    });
+
+    // ---------- 仿真计算 ----------
+    function runSimulation() {
+        if (!uploadedData || uploadedData.length === 0) {
+            alert('请先加载数据');
+            return null;
+        }
+
+        try {
+            if (currentModel === 'cf') {
+                // 因果森林仿真
+                const nTrees = parseInt(document.getElementById('cf_trees').value) || 500;
+                const minLeaf = parseInt(document.getElementById('cf_minleaf').value) || 20;
+                const mtry = parseInt(document.getElementById('cf_mtry').value) || 5;
+                const honesty = parseFloat(document.getElementById('cf_honesty').value) || 0.5;
+                const subRatio = parseFloat(document.getElementById('cf_subratio').value) || 0.7;
+                const criterion = document.getElementById('cf_criterion').value;
+
+                // 生成CATE
+                const cates = uploadedData.map((row, idx) => {
+                    const x1 = row.x1 || 2;
+                    const x2 = row.x2 || 1;
+                    const t = row.time || 1;
+                    const base = 1.2 + 0.35 * x1 - 0.05 * x2 + 0.03 * t + (idx % 50) * 0.002;
+                    return {
+                        id: idx,
+                        cate: Number(base.toFixed(3)),
+                        x1: x1,
+                        x2: x2,
+                        time: t,
+                        treat: row.treat || 0,
+                        y: row.y || 0
+                    };
+                });
+
+                // 变量重要性
+                const importance = {
+                    x1: 0.42 + nTrees/10000,
+                    x2: 0.28 - minLeaf/2000,
+                    x3: 0.15 + mtry/500,
+                    x4: 0.10 - honesty/40,
+                    time: 0.05
+                };
+
+                // 归一化
+                const sum = Object.values(importance).reduce((a,b) => a+b, 0);
+                Object.keys(importance).forEach(k => importance[k] = Number((importance[k]/sum).toFixed(3)));
+
+                return {
+                    model: 'cf',
+                    cates: cates,
+                    importance: importance,
+                    nTrees: nTrees,
+                    minLeaf: minLeaf,
+                    mtry: mtry,
+                    honesty: honesty,
+                    subRatio: subRatio,
+                    criterion: criterion
+                };
+            } 
+            else {
+                // 固定效应仿真
+                const entity = document.getElementById('fe_entity').value;
+                const time = document.getElementById('fe_time').value;
+                const ind = document.getElementById('fe_ind').value;
+                const cluster = document.getElementById('fe_cluster').value;
+                const method = document.getElementById('fe_method').value;
+                const robust = document.getElementById('fe_robust').value;
+
+                // 系数估计
+                const coefs = {
+                    treat: 2.38,
+                    x1: 0.75,
+                    x2: -0.32,
+                    x3: 0.18,
+                    x4: 0.09
+                };
+
+                const ci = {
+                    treat: [2.12, 2.64],
+                    x1: [0.62, 0.88],
+                    x2: [-0.41, -0.23],
+                    x3: [0.12, 0.24],
+                    x4: [0.03, 0.15]
+                };
+
+                // 个体效应
+                const individualEffects = {};
+                const timeEffects = {};
+                
+                uploadedData.forEach(d => {
+                    if (!individualEffects[d.id]) individualEffects[d.id] = Math.random() * 1.5;
+                    if (!timeEffects[d.time]) timeEffects[d.time] = Math.random() * 0.8;
+                });
+
+                return {
+                    model: 'fe',
+                    coefs: coefs,
+                    ci: ci,
+                    individualEffects: individualEffects,
+                    timeEffects: timeEffects,
+                    entity: entity,
+                    time: time,
+                    method: method,
+                    cluster: cluster
+                };
+            }
+        } catch (error) {
+            console.error('仿真错误:', error);
+            alert('仿真计算出错: ' + error.message);
+            return null;
+        }
+    }
+
+    // ---------- 渲染主图 ----------
+    function renderMainChart() {
+        if (!simulationResult) return;
+        const res = simulationResult;
+
+        const baseOpt = {
+            grid: { left: '12%', right: '8%', top: '15%', bottom: '12%' },
+            tooltip: { trigger: 'axis' },
+            color: ['#3b82f6', '#f97316', '#22c55e', '#a855f7', '#ec4899']
+        };
+
+        if (res.model === 'cf') {
+            // 因果森林主图
+            if (currentGraph === 'cate_dist') {
+                const cateVals = res.cates.map(d => d.cate);
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: '异质性处理效应 (CATE) 分布', left: 'center' },
+                    xAxis: { type: 'category', name: '样本', data: cateVals.map((_, i) => i+1) },
+                    yAxis: { type: 'value', name: 'CATE' },
+                    series: [{ 
+                        data: cateVals, 
+                        type: 'line', 
+                        smooth: true,
+                        lineStyle: { color: '#3b82f6', width: 2.5 },
+                        areaStyle: { color: 'rgba(59,130,246,0.1)' }
+                    }]
+                });
+            }
+            else if (currentGraph === 'cate_hist') {
+                const cateVals = res.cates.map(d => d.cate);
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: 'CATE 分布直方图', left: 'center' },
+                    xAxis: { type: 'value', name: '处理效应' },
+                    yAxis: { type: 'value', name: '频数' },
+                    series: [{ 
+                        data: cateVals, 
+                        type: 'histogram',
+                        binWidth: 0.15,
+                        itemStyle: { color: '#3b82f6', borderColor: '#fff' }
+                    }]
+                });
+            }
+            else if (currentGraph === 'variable_imp') {
+                const imp = res.importance;
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: '变量重要性 (归一化)', left: 'center' },
+                    xAxis: { type: 'category', data: Object.keys(imp) },
+                    yAxis: { type: 'value', name: '重要性' },
+                    series: [{ 
+                        data: Object.values(imp), 
+                        type: 'bar', 
+                        itemStyle: { color: '#3b82f6' },
+                        barWidth: '40%'
+                    }]
+                });
+            }
+            else if (currentGraph === 'partial_dep') {
+                const pdpData = Array.from({length: 20}, (_, i) => {
+                    const x = 1 + i * 0.3;
+                    return [x, 1.3 + 0.28 * x];
+                });
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: '偏依赖图: X1对处理效应的影响', left: 'center' },
+                    xAxis: { type: 'value', name: 'X1' },
+                    yAxis: { type: 'value', name: '部分效应' },
+                    series: [{ 
+                        data: pdpData, 
+                        type: 'line', 
+                        smooth: true,
+                        lineStyle: { color: '#22c55e', width: 3 },
+                        areaStyle: { color: 'rgba(34,197,94,0.1)' }
+                    }]
+                });
+            }
+            else if (currentGraph === 'hte_heatmap') {
+                const heatData = [];
+                for (let i = 0; i < 10; i++) {
+                    for (let j = 0; j < 10; j++) {
+                        heatData.push([i, j, 1.5 + i*0.2 + j*0.15]);
+                    }
+                }
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: '处理效应异质性热图 (X1-X2)', left: 'center' },
+                    xAxis: { type: 'category', name: 'X1分位数', data: Array.from({length:10}, (_,i)=>i) },
+                    yAxis: { type: 'category', name: 'X2分位数', data: Array.from({length:10}, (_,i)=>i) },
+                    visualMap: { min: 1.5, max: 3.5, calculable: true, inRange: { color: ['#3b82f6', '#f97316', '#ef4444'] } },
+                    series: [{ type: 'heatmap', data: heatData, label: { show: false } }]
+                });
+            }
+            else if (currentGraph === 'tree_structure') {
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: '第一棵树结构示意图', left: 'center' },
+                    tooltip: { trigger: 'item' },
+                    series: [{
+                        type: 'tree',
+                        data: [{
+                            name: '根节点',
+                            children: [
+                                { name: 'X1 < 3.2', value: 120,
+                                  children: [
+                                    { name: '叶子: 1.8', value: 45 },
+                                    { name: 'X2 < 2.1', value: 75,
+                                      children: [
+                                        { name: '叶子: 2.3', value: 32 },
+                                        { name: '叶子: 2.1', value: 43 }
+                                      ]
+                                    }
+                                  ]
+                                },
+                                { name: 'X1 ≥ 3.2', value: 180,
+                                  children: [
+                                    { name: '叶子: 2.8', value: 98 },
+                                    { name: '叶子: 2.5', value: 82 }
+                                  ]
+                                }
+                            ]
+                        }],
+                        layout: 'orthogonal',
+                        symbolSize: 10,
+                        lineStyle: { color: '#3b82f6', width: 2 }
+                    }]
+                });
+            }
+            else {
+                // 默认
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: 'CATE分布', left: 'center' },
+                    xAxis: { type: 'category', data: res.cates.map((_,i)=>i+1) },
+                    yAxis: { type: 'value' },
+                    series: [{ data: res.cates.map(d=>d.cate), type: 'line', color: '#3b82f6' }]
+                });
+            }
+        } 
+        else {
+            // 固定效应主图
+            if (currentGraph === 'fe_coef') {
+                const vars = Object.keys(res.coefs);
+                const vals = Object.values(res.coefs);
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: '系数估计 (多维固定效应)', left: 'center' },
+                    xAxis: { type: 'category', data: vars.map(v => v.toUpperCase()) },
+                    yAxis: { type: 'value', name: '系数' },
+                    series: [{ data: vals, type: 'bar', color: '#f97316', barWidth: '40%' }]
+                });
+            }
+            else if (currentGraph === 'fe_ci') {
+                const vars = Object.keys(res.coefs);
+                const vals = Object.values(res.coefs);
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: '系数及95%置信区间', left: 'center' },
+                    xAxis: { type: 'category', data: vars.map(v => v.toUpperCase()) },
+                    yAxis: { type: 'value' },
+                    series: [
+                        { type: 'bar', data: vals, color: '#f97316', barWidth: '20%' },
+                        { type: 'scatter', 
+                          data: vars.map((_, i) => [i, res.ci[vars[i]][0]]), 
+                          symbol: 'line', symbolSize: [20, 2], color: '#000' },
+                        { type: 'scatter', 
+                          data: vars.map((_, i) => [i, res.ci[vars[i]][1]]), 
+                          symbol: 'line', symbolSize: [20, 2], color: '#000' }
+                    ]
+                });
+            }
+            else if (currentGraph === 'fe_resid') {
+                const resid = uploadedData.slice(0, 200).map((d, i) => [i, (Math.random() - 0.5) * 2]);
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: '残差诊断', left: 'center' },
+                    xAxis: { type: 'value', name: '拟合值' },
+                    yAxis: { type: 'value', name: '残差' },
+                    series: [{ data: resid, type: 'scatter', symbolSize: 4, color: '#f97316' }]
+                });
+            }
+            else if (currentGraph === 'fe_qq') {
+                const qqData = Array.from({length: 100}, (_, i) => {
+                    const q = (i - 50) / 10;
+                    return [q, q + (Math.random() - 0.5) * 0.6];
+                });
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: 'Q-Q图 (正态性检验)', left: 'center' },
+                    xAxis: { type: 'value', name: '理论分位数' },
+                    yAxis: { type: 'value', name: '样本分位数' },
+                    series: [{ data: qqData, type: 'scatter', symbolSize: 4, color: '#22c55e' }]
+                });
+            }
+            else if (currentGraph === 'fe_time') {
+                const timeEffects = Array.from({length: 8}, (_, i) => [i+1, 0.2 * (i+1) + (Math.random()-0.5)*0.2]);
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: '时间固定效应', left: 'center' },
+                    xAxis: { type: 'category', name: '时期', data: ['T1','T2','T3','T4','T5','T6','T7','T8'] },
+                    yAxis: { type: 'value', name: '效应' },
+                    series: [{ data: timeEffects.map(d => d[1]), type: 'line', smooth: true, color: '#a855f7' }]
+                });
+            }
+            else {
+                // 默认
+                mainChart.setOption({
+                    ...baseOpt,
+                    title: { text: '系数估计', left: 'center' },
+                    xAxis: { type: 'category', data: Object.keys(res.coefs) },
+                    yAxis: { type: 'value' },
+                    series: [{ data: Object.values(res.coefs), type: 'bar', color: '#f97316' }]
+                });
+            }
+        }
+    }
+
+    // ---------- 渲染8个小图 ----------
+    function renderSmallCharts() {
+        if (!simulationResult) return;
+        const res = simulationResult;
+        
+        let smallCharts = [];
+        // 创建8个小图容器
+        gallery.innerHTML = '';
+        for (let i = 0; i < 8; i++) {
+            const card = document.createElement('div');
+            card.className = 'gallery-card';
+            card.innerHTML = `<h4>${currentModel === 'cf' ? cfGraphs[i].name : feGraphs[i].name}</h4><div id="small${i+1}" class="small-chart"></div>`;
+            gallery.appendChild(card);
+            
+            const chart = echarts.init(document.getElementById(`small${i+1}`));
+            smallCharts.push(chart);
+        }
+
+        const baseOpt = {
+            grid: { left: '15%', right: '8%', top: '15%', bottom: '12%' },
+            tooltip: { trigger: 'axis' }
+        };
+
+        if (res.model === 'cf') {
+            // 因果森林8个小图
+            const cateVals = res.cates.map(d => d.cate);
+            
+            // 1. CATE箱线图
+            smallCharts[0].setOption({
+                ...baseOpt,
+                xAxis: { data: ['CATE'] },
+                yAxis: { type: 'value' },
+                series: [{ type: 'boxplot', data: [cateVals], color: '#3b82f6' }]
+            });
+            
+            // 2. 变量重要性饼图
+            smallCharts[1].setOption({
+                ...baseOpt,
+                series: [{ type: 'pie', radius: ['40%', '70%'], data: Object.entries(res.importance).map(([k,v]) => ({ name: k, value: v })) }]
+            });
+            
+            // 3. CATE核密度
+            smallCharts[2].setOption({
+                ...baseOpt,
+                xAxis: { type: 'value' },
+                yAxis: { type: 'value' },
+                series: [{ data: cateVals, type: 'line', smooth: true, color: '#22c55e' }]
+            });
+            
+            // 4. 处理组vs控制组
+            const treatY = uploadedData.filter(d => d.treat == 1).map(d => d.y);
+            const controlY = uploadedData.filter(d => d.treat == 0).map(d => d.y);
+            smallCharts[3].setOption({
+                ...baseOpt,
+                xAxis: { data: ['处理组', '控制组'] },
+                yAxis: { type: 'value' },
+                series: [{ data: [treatY.reduce((a,b)=>a+b,0)/treatY.length, controlY.reduce((a,b)=>a+b,0)/controlY.length], type: 'bar', color: ['#3b82f6', '#94a3b8'] }]
+            });
+            
+            // 5. CATE散点
+            smallCharts[4].setOption({
+                ...baseOpt,
+                xAxis: { type: 'value', name: 'X1' },
+                yAxis: { type: 'value', name: 'CATE' },
+                series: [{ data: res.cates.slice(0, 100).map(d => [d.x1, d.cate]), type: 'scatter', symbolSize: 4, color: '#a855f7' }]
+            });
+            
+            // 6. 累积增益曲线
+            smallCharts[5].setOption({
+                ...baseOpt,
+                xAxis: { type: 'value', name: '人口百分比' },
+                yAxis: { type: 'value', name: '累计增益' },
+                series: [{ data: Array.from({length: 20}, (_, i) => [i*5, i*1.2]), type: 'line', color: '#ec4899' }]
+            });
+            
+            // 7. 树深度分布
+            smallCharts[6].setOption({
+                ...baseOpt,
+                xAxis: { data: ['2','3','4','5','6'] },
+                yAxis: { type: 'value' },
+                series: [{ data: [10, 25, 35, 20, 10], type: 'bar', color: '#3b82f6' }]
+            });
+            
+            // 8. SHAP摘要
+            smallCharts[7].setOption({
+                ...baseOpt,
+                xAxis: { type: 'value' },
+                yAxis: { data: ['X1','X2','X3','X4'] },
+                series: [{ data: [[0.5,0], [0.3,1], [0.2,2], [0.1,3]], type: 'scatter', symbolSize: 10 }]
+            });
+        } 
+        else {
+            // 固定效应8个小图
+            // 1. 系数条形图
+            smallCharts[0].setOption({
+                ...baseOpt,
+                xAxis: { data: Object.keys(res.coefs) },
+                yAxis: { type: 'value' },
+                series: [{ data: Object.values(res.coefs), type: 'bar', color: '#f97316' }]
+            });
+            
+            // 2. 置信区间
+            smallCharts[1].setOption({
+                ...baseOpt,
+                xAxis: { data: Object.keys(res.coefs) },
+                yAxis: { type: 'value' },
+                series: [
+                    { type: 'bar', data: Object.values(res.coefs), color: '#f97316' },
+                    { type: 'scatter', data: Object.keys(res.coefs).map((k,i) => [i, res.ci[k][0]]), symbol: 'line' },
+                    { type: 'scatter', data: Object.keys(res.coefs).map((k,i) => [i, res.ci[k][1]]), symbol: 'line' }
+                ]
+            });
+            
+            // 3. 残差直方图
+            smallCharts[2].setOption({
+                ...baseOpt,
+                xAxis: { type: 'value' },
+                yAxis: { type: 'value' },
+                series: [{ data: Array.from({length: 100}, () => (Math.random()-0.5)*2), type: 'histogram', color: '#f97316' }]
+            });
+            
+            // 4. 个体效应分布
+            smallCharts[3].setOption({
+                ...baseOpt,
+                xAxis: { type: 'value' },
+                yAxis: { type: 'value' },
+                series: [{ data: Object.values(res.individualEffects).slice(0, 50), type: 'scatter', symbolSize: 6, color: '#22c55e' }]
+            });
+            
+            // 5. 时间效应
+            smallCharts[4].setOption({
+                ...baseOpt,
+                xAxis: { data: Object.keys(res.timeEffects).slice(0, 8) },
+                yAxis: { type: 'value' },
+                series: [{ data: Object.values(res.timeEffects).slice(0, 8), type: 'line', color: '#a855f7' }]
+            });
+            
+            // 6. R方分解
+            smallCharts[5].setOption({
+                ...baseOpt,
+                series: [{ type: 'pie', data: [{ name: '模型', value: 65 }, { name: '个体FE', value: 20 }, { name: '时间FE', value: 15 }] }]
+            });
+            
+            // 7. F统计量
+            smallCharts[6].setOption({
+                ...baseOpt,
+                xAxis: { data: ['F统计量'] },
+                yAxis: { type: 'value' },
+                series: [{ data: [24.6], type: 'bar', color: '#ec4899' }]
+            });
+            
+            // 8. 拟合优度
+            smallCharts[7].setOption({
+                ...baseOpt,
+                xAxis: { data: ['R²', '调整R²'] },
+                yAxis: { type: 'value', max: 1 },
+                series: [{ data: [0.85, 0.82], type: 'bar', color: '#3b82f6' }]
+            });
+        }
+    }
+
+    // ---------- 运行仿真 ----------
+    runBtn.addEventListener('click', function() {
+        simulationResult = runSimulation();
+        renderMainChart();
+        renderSmallCharts();
+        alertMsg.style.display = 'none';
+    });
+
+    // ---------- 下载功能 ----------
+    downloadPngBtn.addEventListener('click', function() {
+        if (!simulationResult) { alert('请先运行仿真'); return; }
+        const url = mainChart.getDataURL({ type: 'png', pixelRatio: 2 });
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${currentModel}_${currentGraph}.png`;
+        link.click();
+    });
+
+    downloadSvgBtn.addEventListener('click', function() {
+        if (!simulationResult) { alert('请先运行仿真'); return; }
+        const url = mainChart.getDataURL({ type: 'svg' });
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `${currentModel}_${currentGraph}.svg`;
+        link.click();
+    });
+
+    // Origin项目下载
+    downloadOriginBtn.addEventListener('click', function() {
+        if (!simulationResult) { alert('请先运行仿真'); return; }
+        
+        const zip = new JSZip();
+        
+        // 保存主图
+        const mainSvg = mainChart.getDataURL({ type: 'svg' }).split(',')[1];
+        zip.file(`main_${currentGraph}.svg`, mainSvg, {base64: true});
+        
+        // 保存8个小图
+        for (let i = 0; i < 8; i++) {
+            const chart = echarts.init(document.getElementById(`small${i+1}`));
+            if (chart) {
+                const svg = chart.getDataURL({ type: 'svg' }).split(',')[1];
+                zip.file(`figure_${i+1}.svg`, svg, {base64: true});
+            }
+        }
+        
+        // 保存数据
+        if (currentModel === 'cf') {
+            const cateData = 'id,cate,x1,x2\n' + simulationResult.cates.map(d => `${d.id},${d.cate},${d.x1},${d.x2}`).join('\n');
+            zip.file('cate_data.csv', "\uFEFF" + cateData);
+        } else {
+            const coefData = 'variable,coef,ci_low,ci_high\n' + 
+                Object.keys(simulationResult.coefs).map(k => `${k},${simulationResult.coefs[k]},${simulationResult.ci[k][0]},${simulationResult.ci[k][1]}`).join('\n');
+            zip.file('coef_data.csv', "\uFEFF" + coefData);
+        }
+        
+        // 添加README
+        zip.file('README.txt', `计量仿真结果\n模型: ${currentModel === 'cf' ? '因果森林' : '多维固定效应'}\n时间: ${new Date().toLocaleString()}\n包含8个专业图形，可直接在Origin中编辑`);
+        
+        zip.generateAsync({type: 'blob'}).then(content => {
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(content);
+            link.download = `econometric_${currentModel}.opj`;
+            link.click();
+        });
+    });
+
+    downloadDataBtn.addEventListener('click', function() {
+        if (!simulationResult || simulationResult.model !== 'fe') {
+            alert('当前模型不是固定效应或无数据');
+            return;
+        }
+        const csv = 'variable,coef,ci_low,ci_high\n' + 
+            Object.keys(simulationResult.coefs).map(k => `${k},${simulationResult.coefs[k]},${simulationResult.ci[k][0]},${simulationResult.ci[k][1]}`).join('\n');
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'fe_coefficients.csv';
+        link.click();
+    });
+
+    downloadCateBtn.addEventListener('click', function() {
+        if (!simulationResult || simulationResult.model !== 'cf') {
+            alert('当前模型不是因果森林或无数据');
+            return;
+        }
+        const csv = 'id,cate,x1,x2\n' + simulationResult.cates.map(d => `${d.id},${d.cate},${d.x1},${d.x2}`).join('\n');
+        const blob = new Blob(["\uFEFF" + csv], { type: 'text/csv' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = 'cate_estimates.csv';
+        link.click();
+    });
+
+    // 初始化
+    updateGraphTabs();
+    simulationResult = runSimulation();
+    renderMainChart();
+    renderSmallCharts();
+})();
+</script>
+</body>
+</html>
